@@ -150,6 +150,13 @@ export function createRouter(coordinator: ClawPulseCoordinator): Router {
   router.post(
     "/api/scrape",
     async (req: Request, res: Response): Promise<void> => {
+      // Only allow calls from localhost (the OpenClaw agent inside the container)
+      const ip = req.ip || req.socket.remoteAddress || "";
+      if (ip !== "127.0.0.1" && ip !== "::1" && ip !== "::ffff:127.0.0.1") {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+
       const { urls } = req.body as { urls?: string[] };
 
       if (!urls || !Array.isArray(urls) || urls.length === 0) {
@@ -180,6 +187,13 @@ export function createRouter(coordinator: ClawPulseCoordinator): Router {
   router.post(
     "/api/action",
     async (req: Request, res: Response): Promise<void> => {
+      // Only allow calls from localhost (the OpenClaw agent inside the container)
+      const ip = req.ip || req.socket.remoteAddress || "";
+      if (ip !== "127.0.0.1" && ip !== "::1" && ip !== "::ffff:127.0.0.1") {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+
       const { from, action, payload } = req.body as {
         from?: string;
         action?: string;
