@@ -1,14 +1,13 @@
 /**
- * ClawPulse — Coordinator
+ * ClawPulse — Data Store
  *
- * Processes incoming actions (break, update, react, close) and returns outgoing actions.
- * Validates breaking stories via crawlee + LLM before going live.
+ * CRUD layer for threads, updates, reactions. The OpenClaw agent is the
+ * editorial decision-maker — this is just its local tool for persistence.
  */
 
 import * as crypto from "node:crypto";
 import type pg from "pg";
 import { query, queryOne } from "./db.js";
-import { validateStory } from "./validator.js";
 import {
   VALID_CATEGORIES,
   type AgentStats,
@@ -16,6 +15,13 @@ import {
   type ThreadRow,
   type UpdateRow,
 } from "./types.js";
+
+const validCategorySet = new Set<string>(VALID_CATEGORIES);
+
+export interface ActionResult {
+  outgoing: OutgoingAction[];
+  threadId?: string;
+}
 
 export class ClawPulseCoordinator {
   constructor(private pool: pg.Pool) {}
@@ -26,100 +32,82 @@ export class ClawPulseCoordinator {
     from: string,
     action: string,
     payload: Record<string, unknown>,
-  ): Promise<OutgoingAction[]> {
+  ): Promise<ActionResult> {
     switch (action) {
-      case "break":
-        return this.handleBreak(from, payload);
+      case "moderate":
+        return this.handleModerate(payload);
       case "update":
-        return this.handleUpdate(from, payload);
+        return { outgoing: await this.handleUpdate(from, payload) };
       case "react":
-        return this.handleReact(from, payload);
-      case "close":
-        return this.handleClose(from, payload);
+        return { outgoing: await this.handleReact(from, payload) };
+      case "query":
+        return { outgoing: await this.handleQuery(from, payload) };
       default:
-        return [];
+        return { outgoing: [] };
     }
   }
 
-  // ─── Break: agent submits breaking story ────────────────────────
+  // ─── Moderate: create thread with editorial decision ──────────
 
-  private async handleBreak(
-    from: string,
+  private async handleModerate(
     payload: Record<string, unknown>,
-  ): Promise<OutgoingAction[]> {
-    const headline = payload.headline as string;
-    const summary = payload.summary as string;
-    const category = payload.category as string;
+  ): Promise<ActionResult> {
+    const submittedBy = payload.submittedBy as string;
+    const headline = (payload.headline as string) || "";
+    const summary = (payload.summary as string) || "";
+    const category = (payload.category as string) || "";
     const sourceUrls = (payload.sourceUrls as string[]) || [];
+    const decision = payload.decision as string;
+    const notes = (payload.notes as string) || "";
 
+    if (!submittedBy || !decision) {
+      return { outgoing: [] };
+    }
+
+    if (decision !== "confirm" && decision !== "reject") {
+      return { outgoing: [] };
+    }
+
+    // Basic field validation
+    if (!headline || headline.length < 10) {
+      return { outgoing: [], threadId: undefined };
+    }
+    if (!summary || summary.length < 20) {
+      return { outgoing: [], threadId: undefined };
+    }
+    if (!validCategorySet.has(category)) {
+      return { outgoing: [], threadId: undefined };
+    }
+
+    const status = decision === "confirm" ? "live" : "rejected";
     const threadId = `t-${crypto.randomBytes(4).toString("hex")}`;
 
-    // Validate story via crawlee + LLM
-    const result = await validateStory({
-      headline: headline || "",
-      summary: summary || "",
-      category: category || "",
-      sourceUrls,
-    });
+    await queryOne<ThreadRow>(
+      `INSERT INTO threads (thread_id, status, category, headline, summary, source_urls, submitted_by, validation_notes, validated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       RETURNING *`,
+      [
+        threadId,
+        status,
+        category,
+        headline,
+        summary,
+        JSON.stringify(sourceUrls),
+        submittedBy,
+        notes,
+      ],
+    );
 
-    if (result.valid) {
-      // Insert as live thread
-      await queryOne<ThreadRow>(
-        `INSERT INTO threads (thread_id, status, category, headline, summary, source_urls, submitted_by, validation_notes, validated_at)
-         VALUES ($1, 'live', $2, $3, $4, $5, $6, $7, now())
-         RETURNING *`,
-        [
-          threadId,
-          category,
-          headline,
-          summary,
-          JSON.stringify(sourceUrls),
-          from,
-          result.notes,
-        ],
-      );
-
-      return [
+    return {
+      outgoing: [
         {
-          toAddress: from,
-          action: "confirm",
-          payload: {
-            threadId,
-            headline,
-            category,
-            notes: result.notes,
-          },
+          toAddress: submittedBy,
+          action: decision,
+          payload: { threadId, headline, category, notes },
         },
-      ];
-    } else {
-      // Insert as rejected for audit trail
-      await queryOne<ThreadRow>(
-        `INSERT INTO threads (thread_id, status, category, headline, summary, source_urls, submitted_by, validation_notes, validated_at)
-         VALUES ($1, 'rejected', $2, $3, $4, $5, $6, $7, now())
-         RETURNING *`,
-        [
-          threadId,
-          category || "breaking",
-          headline || "Untitled",
-          summary || "",
-          JSON.stringify(sourceUrls),
-          from,
-          result.notes,
-        ],
-      );
-
-      return [
-        {
-          toAddress: from,
-          action: "reject",
-          payload: {
-            threadId,
-            headline: headline || "Untitled",
-            notes: result.notes,
-          },
-        },
-      ];
-    }
+      ],
+      threadId,
+    };
   }
 
   // ─── Update: agent posts live update to thread ──────────────────
@@ -182,35 +170,83 @@ export class ClawPulseCoordinator {
     return [];
   }
 
-  // ─── Close: original submitter closes thread ────────────────────
+  // ─── Query: agent reads wire state ─────────────────────────────
 
-  private async handleClose(
+  private async handleQuery(
     from: string,
     payload: Record<string, unknown>,
   ): Promise<OutgoingAction[]> {
-    const threadId = payload.threadId as string;
-    if (!threadId) return [];
+    const type = payload.type as string;
+    let data: unknown;
 
+    switch (type) {
+      case "threads":
+        data = await this.getThreads();
+        break;
+      case "thread": {
+        const threadId = payload.threadId as string;
+        if (!threadId) return [];
+        const thread = await this.getThread(threadId);
+        if (!thread) {
+          data = { error: "Thread not found" };
+          break;
+        }
+        const updates = await this.getUpdates(threadId);
+        const updatesWithReactions = await Promise.all(
+          updates.map(async (u) => {
+            const reactions = await this.getUpdateReactions(u.update_id);
+            return { ...u, reactions };
+          }),
+        );
+        data = { thread, updates: updatesWithReactions };
+        break;
+      }
+      case "category": {
+        const category = payload.category as string;
+        if (!category) return [];
+        data = await this.getThreads({ category });
+        break;
+      }
+      case "agent": {
+        const address = (payload.address as string) || from;
+        data = await this.getAgentStats(address);
+        break;
+      }
+      case "leaderboard":
+        data = await this.getLeaderboard();
+        break;
+      case "stats":
+        data = await this.getStats();
+        break;
+      default:
+        data = { error: `Unknown query type: ${type}` };
+    }
+
+    return [
+      {
+        toAddress: from,
+        action: "query",
+        payload: { type, data } as Record<string, unknown>,
+      },
+    ];
+  }
+
+  // ─── Close thread: internal operation (not an external action) ──
+
+  async closeThread(threadId: string): Promise<boolean> {
     const thread = await queryOne<ThreadRow>(
-      `SELECT * FROM threads WHERE thread_id = $1 AND status = 'live' AND submitted_by = $2`,
-      [threadId, from],
+      `SELECT * FROM threads WHERE thread_id = $1 AND status = 'live'`,
+      [threadId],
     );
 
-    if (!thread) return [];
+    if (!thread) return false;
 
     await query(
       `UPDATE threads SET status = 'closed', closed_at = now() WHERE thread_id = $1`,
       [threadId],
     );
 
-    return [
-      {
-        toAddress: from,
-        action: "close",
-        payload: { threadId, headline: thread.headline },
-        terminal: true,
-      },
-    ];
+    return true;
   }
 
   // ─── Public read methods ────────────────────────────────────────

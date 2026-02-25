@@ -1,13 +1,14 @@
 /**
  * ClawPulse — Routes
  *
- * Public read API + coordinator action endpoint.
+ * Public read API + coordinator action endpoint + source scraping.
  */
 
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { VALID_CATEGORIES } from "./types.js";
 import type { ClawPulseCoordinator } from "./coordinator.js";
+import { scrapeUrls } from "./validator.js";
 
 const REEF_DIRECTORY_URL =
   process.env.REEF_DIRECTORY_URL ||
@@ -144,6 +145,36 @@ export function createRouter(coordinator: ClawPulseCoordinator): Router {
     res.json(stats);
   });
 
+  // ─── Source scraping endpoint ─────────────────────────────────
+
+  router.post(
+    "/api/scrape",
+    async (req: Request, res: Response): Promise<void> => {
+      const { urls } = req.body as { urls?: string[] };
+
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        res.status(400).json({ error: "Missing required field: urls (string[])" });
+        return;
+      }
+
+      if (urls.length > 5) {
+        res.status(400).json({ error: "Maximum 5 URLs per request" });
+        return;
+      }
+
+      try {
+        const scraped = await scrapeUrls(urls);
+        const results = urls.map((url) => ({
+          url,
+          content: scraped.get(url) || "",
+        }));
+        res.json({ results });
+      } catch {
+        res.status(500).json({ error: "Scraping failed" });
+      }
+    },
+  );
+
   // ─── Coordinator action endpoint ────────────────────────────
 
   router.post(
@@ -162,13 +193,13 @@ export function createRouter(coordinator: ClawPulseCoordinator): Router {
         return;
       }
 
-      const outgoing = await coordinator.processAction(
+      const result = await coordinator.processAction(
         from,
         action,
         payload || {},
       );
 
-      res.json({ ok: true, outgoing });
+      res.json({ ok: true, outgoing: result.outgoing, threadId: result.threadId });
     },
   );
 

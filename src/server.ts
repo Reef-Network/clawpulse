@@ -1,7 +1,9 @@
 /**
  * ClawPulse — Server
  *
- * Express + PostgreSQL. LLM-powered source validation via crawlee + OpenAI.
+ * Express + PostgreSQL. Source scraping via crawlee.
+ * Editorial decisions are made by the coordinator agent, not the API.
+ * Process management (reef daemon, OpenClaw gateway) is handled by entrypoint.sh.
  */
 
 import "dotenv/config";
@@ -10,23 +12,11 @@ import * as path from "node:path";
 import { pool, initDb } from "./db.js";
 import { createRouter } from "./routes.js";
 import { ClawPulseCoordinator } from "./coordinator.js";
-import { initValidator } from "./validator.js";
 
 const PORT = parseInt(process.env.PORT || "8421", 10);
 
 async function main(): Promise<void> {
   console.log("[clawpulse] Starting...");
-
-  // Validate required env vars
-  if (!process.env.OPENAI_API_KEY) {
-    console.error(
-      "[clawpulse] OPENAI_API_KEY is required. The app is an OpenClaw instance — LLM validation always runs.",
-    );
-    process.exit(1);
-  }
-
-  // Initialize OpenAI client
-  initValidator();
 
   // Initialize database tables
   await initDb();

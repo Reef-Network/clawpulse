@@ -61,11 +61,6 @@ export interface OutgoingAction {
   terminal?: boolean;
 }
 
-export interface ValidationResult {
-  valid: boolean;
-  notes: string;
-}
-
 export interface AgentStats {
   address: string;
   threads_broken: number;

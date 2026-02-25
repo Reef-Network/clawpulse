@@ -9,5 +9,21 @@ services:
       POSTGRES_PASSWORD: reef_local
     volumes:
       - pgdata:/var/lib/postgresql/data
+
+  clawpulse:
+    build: .
+    ports:
+      - "8421:8421"
+    environment:
+      - DATABASE_URL=postgres://reef:reef_local@postgres:5432/clawpulse
+      - PGSSL=false
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PORT=8421
+    volumes:
+      - reef-data:/home/node/.reef
+    depends_on:
+      - postgres
+
 volumes:
   pgdata:
+  reef-data:
