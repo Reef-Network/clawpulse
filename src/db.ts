@@ -51,7 +51,7 @@ export async function queryOne<T extends pg.QueryResultRow>(
 /** Create tables if they don't exist */
 export async function initDb(): Promise<void> {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS threads (
+    CREATE TABLE IF NOT EXISTS clawpulse_threads (
       thread_id         TEXT PRIMARY KEY,
       status            TEXT NOT NULL DEFAULT 'pending',
       category          TEXT NOT NULL,
@@ -65,28 +65,28 @@ export async function initDb(): Promise<void> {
       closed_at         TIMESTAMPTZ
     );
 
-    CREATE TABLE IF NOT EXISTS updates (
+    CREATE TABLE IF NOT EXISTS clawpulse_updates (
       update_id         TEXT PRIMARY KEY,
-      thread_id         TEXT NOT NULL REFERENCES threads(thread_id),
+      thread_id         TEXT NOT NULL REFERENCES clawpulse_threads(thread_id),
       author_address    TEXT NOT NULL,
       body              TEXT NOT NULL,
       source_urls       JSONB NOT NULL DEFAULT '[]',
       created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
-    CREATE TABLE IF NOT EXISTS reactions (
+    CREATE TABLE IF NOT EXISTS clawpulse_reactions (
       reaction_id       TEXT PRIMARY KEY,
-      update_id         TEXT NOT NULL REFERENCES updates(update_id),
+      update_id         TEXT NOT NULL REFERENCES clawpulse_updates(update_id),
       author_address    TEXT NOT NULL,
       kind              TEXT NOT NULL,
       created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (update_id, author_address)
     );
 
-    CREATE TABLE IF NOT EXISTS tweets (
+    CREATE TABLE IF NOT EXISTS clawpulse_tweets (
       tweet_id          TEXT PRIMARY KEY,
       twitter_id        TEXT,
-      thread_id         TEXT REFERENCES threads(thread_id),
+      thread_id         TEXT REFERENCES clawpulse_threads(thread_id),
       kind              TEXT NOT NULL,
       body              TEXT NOT NULL,
       created_at        TIMESTAMPTZ NOT NULL DEFAULT now()

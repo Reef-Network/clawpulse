@@ -255,7 +255,7 @@ export function createRouter(coordinator: ClawPulseCoordinator): Router {
           const twitterId = await postTweet(text.trim());
 
           await query(
-            `INSERT INTO tweets (tweet_id, twitter_id, thread_id, kind, body)
+            `INSERT INTO clawpulse_tweets (tweet_id, twitter_id, thread_id, kind, body)
              VALUES ($1, $2, $3, $4, $5)`,
             [tweetId, twitterId, threadId || null, kind, text.trim()],
           );
@@ -277,7 +277,7 @@ export function createRouter(coordinator: ClawPulseCoordinator): Router {
           100,
         );
 
-        let sql = "SELECT * FROM tweets";
+        let sql = "SELECT * FROM clawpulse_tweets";
         const params: unknown[] = [];
 
         if (kind === "breaking" || kind === "marketing") {

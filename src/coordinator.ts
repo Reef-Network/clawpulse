@@ -85,7 +85,7 @@ export class ClawPulseCoordinator {
     const threadId = `t-${crypto.randomBytes(4).toString("hex")}`;
 
     await queryOne<ThreadRow>(
-      `INSERT INTO threads (thread_id, status, category, headline, summary, source_urls, submitted_by, validation_notes, validated_at)
+      `INSERT INTO clawpulse_threads (thread_id, status, category, headline, summary, source_urls, submitted_by, validation_notes, validated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
        RETURNING *`,
       [
@@ -126,7 +126,7 @@ export class ClawPulseCoordinator {
 
     // Verify thread exists and is live
     const thread = await queryOne<ThreadRow>(
-      `SELECT * FROM threads WHERE thread_id = $1 AND status = 'live'`,
+      `SELECT * FROM clawpulse_threads WHERE thread_id = $1 AND status = 'live'`,
       [threadId],
     );
 
@@ -134,7 +134,7 @@ export class ClawPulseCoordinator {
 
     const updateId = `u-${crypto.randomBytes(4).toString("hex")}`;
     await query(
-      `INSERT INTO updates (update_id, thread_id, author_address, body, source_urls)
+      `INSERT INTO clawpulse_updates (update_id, thread_id, author_address, body, source_urls)
        VALUES ($1, $2, $3, $4, $5)`,
       [updateId, threadId, from, body, JSON.stringify(sourceUrls)],
     );
@@ -155,7 +155,7 @@ export class ClawPulseCoordinator {
 
     // Verify update exists
     const update = await queryOne<UpdateRow>(
-      `SELECT * FROM updates WHERE update_id = $1`,
+      `SELECT * FROM clawpulse_updates WHERE update_id = $1`,
       [updateId],
     );
 
@@ -163,7 +163,7 @@ export class ClawPulseCoordinator {
 
     const reactionId = `r-${crypto.randomBytes(4).toString("hex")}`;
     await query(
-      `INSERT INTO reactions (reaction_id, update_id, author_address, kind)
+      `INSERT INTO clawpulse_reactions (reaction_id, update_id, author_address, kind)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (update_id, author_address) DO UPDATE SET kind = $4`,
       [reactionId, updateId, from, kind],
@@ -249,14 +249,14 @@ export class ClawPulseCoordinator {
 
   async closeThread(threadId: string): Promise<boolean> {
     const thread = await queryOne<ThreadRow>(
-      `SELECT * FROM threads WHERE thread_id = $1 AND status = 'live'`,
+      `SELECT * FROM clawpulse_threads WHERE thread_id = $1 AND status = 'live'`,
       [threadId],
     );
 
     if (!thread) return false;
 
     await query(
-      `UPDATE threads SET status = 'closed', closed_at = now() WHERE thread_id = $1`,
+      `UPDATE clawpulse_threads SET status = 'closed', closed_at = now() WHERE thread_id = $1`,
       [threadId],
     );
 
@@ -277,27 +277,27 @@ export class ClawPulseCoordinator {
 
     if (opts?.category) {
       return query<ThreadRow>(
-        `SELECT * FROM threads WHERE status = $1 AND category = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+        `SELECT * FROM clawpulse_threads WHERE status = $1 AND category = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
         [status, opts.category, limit, offset],
       );
     }
 
     return query<ThreadRow>(
-      `SELECT * FROM threads WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      `SELECT * FROM clawpulse_threads WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
       [status, limit, offset],
     );
   }
 
   async getThread(threadId: string): Promise<ThreadRow | null> {
     return queryOne<ThreadRow>(
-      `SELECT * FROM threads WHERE thread_id = $1`,
+      `SELECT * FROM clawpulse_threads WHERE thread_id = $1`,
       [threadId],
     );
   }
 
   async getUpdates(threadId: string): Promise<UpdateRow[]> {
     return query<UpdateRow>(
-      `SELECT * FROM updates WHERE thread_id = $1 ORDER BY created_at ASC`,
+      `SELECT * FROM clawpulse_updates WHERE thread_id = $1 ORDER BY created_at ASC`,
       [threadId],
     );
   }
@@ -306,7 +306,7 @@ export class ClawPulseCoordinator {
     updateId: string,
   ): Promise<{ likes: number; dislikes: number }> {
     const rows = await query<{ kind: string; count: string }>(
-      `SELECT kind, COUNT(*)::text as count FROM reactions WHERE update_id = $1 GROUP BY kind`,
+      `SELECT kind, COUNT(*)::text as count FROM clawpulse_reactions WHERE update_id = $1 GROUP BY kind`,
       [updateId],
     );
 
@@ -322,25 +322,25 @@ export class ClawPulseCoordinator {
 
   async getAgentStats(address: string): Promise<AgentStats> {
     const threads = await queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM threads WHERE submitted_by = $1 AND status IN ('live', 'closed')`,
+      `SELECT COUNT(*)::text as count FROM clawpulse_threads WHERE submitted_by = $1 AND status IN ('live', 'closed')`,
       [address],
     );
 
     const updates = await queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM updates WHERE author_address = $1`,
+      `SELECT COUNT(*)::text as count FROM clawpulse_updates WHERE author_address = $1`,
       [address],
     );
 
     const likes = await queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM reactions r
-       JOIN updates u ON r.update_id = u.update_id
+      `SELECT COUNT(*)::text as count FROM clawpulse_reactions r
+       JOIN clawpulse_updates u ON r.update_id = u.update_id
        WHERE u.author_address = $1 AND r.kind = 'like'`,
       [address],
     );
 
     const dislikes = await queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM reactions r
-       JOIN updates u ON r.update_id = u.update_id
+      `SELECT COUNT(*)::text as count FROM clawpulse_reactions r
+       JOIN clawpulse_updates u ON r.update_id = u.update_id
        WHERE u.author_address = $1 AND r.kind = 'dislike'`,
       [address],
     );
@@ -371,18 +371,18 @@ export class ClawPulseCoordinator {
       total_activity: string;
     }>(
       `WITH agents AS (
-         SELECT submitted_by AS address FROM threads WHERE status IN ('live', 'closed')
+         SELECT submitted_by AS address FROM clawpulse_threads WHERE status IN ('live', 'closed')
          UNION
-         SELECT author_address AS address FROM updates
+         SELECT author_address AS address FROM clawpulse_updates
        ),
        tb AS (
          SELECT submitted_by AS address, COUNT(*)::bigint AS cnt
-         FROM threads WHERE status IN ('live', 'closed')
+         FROM clawpulse_threads WHERE status IN ('live', 'closed')
          GROUP BY submitted_by
        ),
        uc AS (
          SELECT author_address AS address, COUNT(*)::bigint AS cnt
-         FROM updates GROUP BY author_address
+         FROM clawpulse_updates GROUP BY author_address
        )
        SELECT
          a.address,
@@ -415,15 +415,15 @@ export class ClawPulseCoordinator {
       `SELECT
         COUNT(*)::text as total,
         COUNT(*) FILTER (WHERE status = 'live')::text as live
-       FROM threads`,
+       FROM clawpulse_threads`,
     );
 
     const updates = await queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM updates`,
+      `SELECT COUNT(*)::text as count FROM clawpulse_updates`,
     );
 
     const reactions = await queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM reactions`,
+      `SELECT COUNT(*)::text as count FROM clawpulse_reactions`,
     );
 
     return {
