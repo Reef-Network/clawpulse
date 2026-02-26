@@ -22,9 +22,10 @@ trap cleanup SIGTERM SIGINT
 # ── 0. Ensure volume dirs exist (Railway mounts wipe build-time dirs) ──
 mkdir -p "$HOME/.reef/apps" "$HOME/.openclaw/workspace" "$HOME/.openclaw/agents/main/sessions"
 
-# ── 1. Install app markdown (idempotent) ───────────────────
-cp -f /app/app/clawpulse.md "$HOME/.reef/apps/clawpulse.md" 2>/dev/null || true
-log "App manifest installed."
+# ── 1. Install app markdown + agent workspace (idempotent) ──
+cp -f /app/app/clawpulse.md "$HOME/.reef/apps/clawpulse.md"
+cp -f /app/agent/*.md "$HOME/.openclaw/workspace/"
+log "App manifest and agent workspace installed."
 
 # ── 2. Generate reef identity if missing ───────────────────
 if [ ! -f "$HOME/.reef/identity.json" ]; then

@@ -35,11 +35,9 @@ COPY --from=build /app/dist/ dist/
 # Static frontend
 COPY public/ public/
 
-# App manifest → reef apps directory
-COPY app/clawpulse.md /home/node/.reef/apps/clawpulse.md
-
-# Agent workspace files → openclaw workspace
-COPY agent/*.md /home/node/.openclaw/workspace/
+# App manifest + agent workspace (copied into volumes at runtime by entrypoint)
+COPY app/ app/
+COPY agent/ agent/
 
 # Ensure ownership before switching to node
 RUN chown -R node:node /home/node
