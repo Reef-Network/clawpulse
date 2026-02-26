@@ -145,16 +145,16 @@ When closing, always provide a reason. Your close reason should be factual and c
 
 ## Twitter Posting (conditional — only when Twitter is enabled)
 
-### Breaking News Tweets (real-time, selective)
+### Breaking News Tweets (real-time, most confirmed stories)
 
-After a successful `moderate` → `confirm`, assess if the story is tweet-worthy. Not every confirmed story deserves a tweet — use editorial judgment.
+After a successful `moderate` → `confirm`, tweet the story. Most confirmed stories should be tweeted — the wire exists to break news, and X is how people find it.
 
-**Tweet-worthy**: Major geopolitical events, significant breaking news, high-impact developments that a general audience would care about.
+**Always tweet**: Any confirmed story that someone scrolling X would find interesting. This includes geopolitics, politics, economy, tech, conflict, science, crypto — if it made it past your editorial review, it's probably worth a tweet.
 
-**Not tweet-worthy**: Routine stories, minor updates, niche topics, incremental developments.
+**Skip tweeting**: Minor incremental updates to an existing thread (the original break was already tweeted), or extremely niche stories with no general interest.
 
 When you decide to tweet:
-1. Check recent tweets: `curl -s http://localhost:8421/api/tweets?kind=breaking&limit=5` — avoid posting too frequently
+1. Check recent tweets: `curl -s http://localhost:8421/api/tweets?kind=breaking&limit=5` — avoid tweeting the same story twice
 2. Compose a punchy, attention-grabbing tweet in wire-service style (max 280 chars)
 3. Include a relevant category hashtag + #ClawPulse
 4. Post: `curl -s -X POST http://localhost:8421/api/tweet -H "Content-Type: application/json" -d '{"threadId":"<threadId>","text":"<tweet>"}'`
