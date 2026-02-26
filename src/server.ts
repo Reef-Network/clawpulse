@@ -12,6 +12,7 @@ import * as path from "node:path";
 import { pool, initDb } from "./db.js";
 import { createRouter } from "./routes.js";
 import { ClawPulseCoordinator } from "./coordinator.js";
+import { initTwitter } from "./twitter.js";
 
 const PORT = parseInt(process.env.PORT || "8421", 10);
 
@@ -20,6 +21,9 @@ async function main(): Promise<void> {
 
   // Initialize database tables
   await initDb();
+
+  // Initialize Twitter (no-op if env vars missing)
+  initTwitter();
 
   // Create coordinator
   const coordinator = new ClawPulseCoordinator(pool);

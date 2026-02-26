@@ -68,3 +68,12 @@ export interface AgentStats {
   likes_received: number;
   dislikes_received: number;
 }
+
+export interface TweetRow {
+  tweet_id: string;
+  twitter_id: string | null;
+  thread_id: string | null;
+  kind: "breaking" | "marketing";
+  body: string;
+  created_at: string;
+}

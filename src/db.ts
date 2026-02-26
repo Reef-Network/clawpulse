@@ -82,6 +82,15 @@ export async function initDb(): Promise<void> {
       created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (update_id, author_address)
     );
+
+    CREATE TABLE IF NOT EXISTS tweets (
+      tweet_id          TEXT PRIMARY KEY,
+      twitter_id        TEXT,
+      thread_id         TEXT REFERENCES threads(thread_id),
+      kind              TEXT NOT NULL,
+      body              TEXT NOT NULL,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 
   console.log("[db] Tables initialized");

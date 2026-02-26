@@ -42,6 +42,8 @@ export class ClawPulseCoordinator {
         return { outgoing: await this.handleReact(from, payload) };
       case "query":
         return { outgoing: await this.handleQuery(from, payload) };
+      case "close":
+        return this.handleClose(payload);
       default:
         return { outgoing: [] };
     }
@@ -231,7 +233,19 @@ export class ClawPulseCoordinator {
     ];
   }
 
-  // ─── Close thread: internal operation (not an external action) ──
+  // ─── Close: coordinator closes a stale thread ─────────────────
+
+  private async handleClose(
+    payload: Record<string, unknown>,
+  ): Promise<ActionResult> {
+    const threadId = payload.threadId as string;
+    if (!threadId) return { outgoing: [] };
+    const closed = await this.closeThread(threadId);
+    if (!closed) return { outgoing: [] };
+    return { outgoing: [], threadId };
+  }
+
+  // ─── Close thread: transitions live → closed ─────────────────
 
   async closeThread(threadId: string): Promise<boolean> {
     const thread = await queryOne<ThreadRow>(

@@ -7,8 +7,12 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { VALID_CATEGORIES } from "./types.js";
+import type { TweetRow } from "./types.js";
 import type { ClawPulseCoordinator } from "./coordinator.js";
 import { scrapeUrls } from "./validator.js";
+import { isTwitterEnabled, postTweet } from "./twitter.js";
+import { query } from "./db.js";
+import crypto from "node:crypto";
 
 const REEF_DIRECTORY_URL =
   process.env.REEF_DIRECTORY_URL ||
@@ -216,6 +220,79 @@ export function createRouter(coordinator: ClawPulseCoordinator): Router {
       res.json({ ok: true, outgoing: result.outgoing, threadId: result.threadId });
     },
   );
+
+  // ─── Twitter endpoints (conditional) ────────────────────────
+
+  if (isTwitterEnabled()) {
+    router.post(
+      "/api/tweet",
+      async (req: Request, res: Response): Promise<void> => {
+        const ip = req.ip || req.socket.remoteAddress || "";
+        if (ip !== "127.0.0.1" && ip !== "::1" && ip !== "::ffff:127.0.0.1") {
+          res.status(403).json({ error: "Forbidden" });
+          return;
+        }
+
+        const { text, threadId } = req.body as {
+          text?: string;
+          threadId?: string;
+        };
+
+        if (!text || typeof text !== "string" || text.trim().length === 0) {
+          res.status(400).json({ error: "Missing required field: text" });
+          return;
+        }
+
+        if (text.length > 280) {
+          res.status(400).json({ error: "Tweet exceeds 280 characters" });
+          return;
+        }
+
+        const tweetId = `tw-${crypto.randomUUID().slice(0, 8)}`;
+        const kind = threadId ? "breaking" : "marketing";
+
+        try {
+          const twitterId = await postTweet(text.trim());
+
+          await query(
+            `INSERT INTO tweets (tweet_id, twitter_id, thread_id, kind, body)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [tweetId, twitterId, threadId || null, kind, text.trim()],
+          );
+
+          res.json({ ok: true, tweetId, twitterId });
+        } catch (err) {
+          console.error("[twitter] Post failed:", err);
+          res.status(500).json({ error: "Failed to post tweet" });
+        }
+      },
+    );
+
+    router.get(
+      "/api/tweets",
+      async (req: Request, res: Response): Promise<void> => {
+        const kind = req.query.kind as string | undefined;
+        const limit = Math.min(
+          parseInt((req.query.limit as string) || "50", 10),
+          100,
+        );
+
+        let sql = "SELECT * FROM tweets";
+        const params: unknown[] = [];
+
+        if (kind === "breaking" || kind === "marketing") {
+          sql += " WHERE kind = $1";
+          params.push(kind);
+        }
+
+        sql += " ORDER BY created_at DESC LIMIT $" + (params.length + 1);
+        params.push(limit);
+
+        const tweets = await query<TweetRow>(sql, params);
+        res.json({ tweets });
+      },
+    );
+  }
 
   return router;
 }

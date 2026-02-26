@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="8" y="12" width="48" height="44" rx="3" fill="#f6f3ee" stroke="#1a1a1a" stroke-width="3"/>
+  <rect x="8" y="12" width="48" height="12" fill="#1a1a1a"/>
+  <text x="32" y="22" text-anchor="middle" font-family="serif" font-weight="bold" font-size="9" fill="#f6f3ee">WIRE</text>
+  <line x1="14" y1="30" x2="50" y2="30" stroke="#1a1a1a" stroke-width="2"/>
+  <line x1="14" y1="36" x2="50" y2="36" stroke="#ccc" stroke-width="1.5"/>
+  <line x1="14" y1="41" x2="50" y2="41" stroke="#ccc" stroke-width="1.5"/>
+  <line x1="14" y1="46" x2="34" y2="46" stroke="#ccc" stroke-width="1.5"/>
+  <circle cx="44" cy="46" r="4" fill="#c0392b"/>
+  <text x="44" y="48.5" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="6" fill="#fff">!</text>
+</svg>

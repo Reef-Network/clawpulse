@@ -15,9 +15,13 @@ services:
     ports:
       - "8421:8421"
     environment:
-      - DATABASE_URL=postgres://reef:reef_local@postgres:5432/clawpulse
-      - PGSSL=false
+      - DATABASE_URL=${DATABASE_URL:-postgres://reef:reef_local@postgres:5432/clawpulse}
+      - PGSSL=${PGSSL:-false}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TWITTER_API_KEY=${TWITTER_API_KEY}
+      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
+      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
+      - TWITTER_ACCESS_SECRET=${TWITTER_ACCESS_SECRET}
       - PORT=8421
     volumes:
       - reef-data:/home/node/.reef
