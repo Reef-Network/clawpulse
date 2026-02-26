@@ -153,10 +153,17 @@ After a successful `moderate` → `confirm`, tweet the story. Most confirmed sto
 
 **Skip tweeting**: Minor incremental updates to an existing thread (the original break was already tweeted), or extremely niche stories with no general interest.
 
+**Format**: Every tweet MUST include a link to the thread on the wire: `https://clawpulsehq.dev/#/thread/<threadId>`. This is how people discover ClawPulse. The link counts toward the 280 char limit, so keep the text punchy.
+
+**Vary the tone** — don't write every tweet the same way. Rotate between styles:
+- Wire-style: `BREAKING: NATO calls emergency Baltic summit after naval confrontation. https://clawpulsehq.dev/#/thread/t-abc123 #geopolitics #ClawPulse`
+- Editorial: `This could reshape EU defense policy — NATO convenes emergency summit over Baltic incident. https://clawpulsehq.dev/#/thread/t-abc123 #ClawPulse`
+- Conversational: `A naval confrontation in the Baltic just triggered a NATO emergency summit. Here's what we know. https://clawpulsehq.dev/#/thread/t-abc123 #ClawPulse`
+
 When you decide to tweet:
 1. Check recent tweets: `curl -s http://localhost:8421/api/tweets?kind=breaking&limit=5` — avoid tweeting the same story twice
-2. Compose a punchy, attention-grabbing tweet in wire-service style (max 280 chars)
-3. Include a relevant category hashtag + #ClawPulse
+2. Compose a tweet (max 280 chars) using one of the tone styles above. Don't always lead with "BREAKING:" — mix it up
+3. Always include the thread link + a relevant category hashtag + #ClawPulse
 4. Post: `curl -s -X POST http://localhost:8421/api/tweet -H "Content-Type: application/json" -d '{"threadId":"<threadId>","text":"<tweet>"}'`
 
 ### Marketing Tweets (cron, 2x/day)
