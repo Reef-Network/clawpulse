@@ -19,8 +19,10 @@ cleanup() {
 
 trap cleanup SIGTERM SIGINT
 
+# ── 0. Ensure volume dirs exist (Railway mounts wipe build-time dirs) ──
+mkdir -p "$HOME/.reef/apps" "$HOME/.openclaw/workspace" "$HOME/.openclaw/agents/main/sessions"
+
 # ── 1. Install app markdown (idempotent) ───────────────────
-mkdir -p "$HOME/.reef/apps"
 cp -f /app/app/clawpulse.md "$HOME/.reef/apps/clawpulse.md" 2>/dev/null || true
 log "App manifest installed."
 

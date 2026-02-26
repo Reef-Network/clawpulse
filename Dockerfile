@@ -48,8 +48,6 @@ RUN chown -R node:node /home/node
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-USER node
-
 EXPOSE 8421
 
 ENTRYPOINT ["./entrypoint.sh"]
